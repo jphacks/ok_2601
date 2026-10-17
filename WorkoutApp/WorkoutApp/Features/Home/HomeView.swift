@@ -4,24 +4,31 @@ import SwiftUI
 // MARK: - ホーム画面
 
 struct HomeView: View {
-    @State private var showingWorkoutAlert = false
-    @State private var selectedDate = Calendar.current.startOfDay(
-        for: Date()
-    )
+    @State private var showingWorkoutSheet = false
 
-    // 仮の記録データ
-    private let workoutLogs = WorkoutLog.samples
+    @State private var selectedDate =
+        Calendar.current.startOfDay(for: Date())
+
+    // ポイント残高
+    @State private var musclePoints = 0
+
+    // 仮の記録実績
+    @State private var totalRecordDays = 12
+    @State private var consecutiveRecordDays = 3
+
+    // 記録データ
+    @State private var workoutLogs = WorkoutLog.samples
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
 
                 // 1. 育成モデル
-                modelSection
+                pointsSection
 
                 // 2. 筋トレ開始ボタン
                 Button {
-                    showingWorkoutAlert = true
+                    showingWorkoutSheet = true
                 } label: {
                     HStack {
                         Image(systemName: "play.fill")
@@ -38,6 +45,26 @@ struct HomeView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .buttonStyle(.plain)
+                .sheet(isPresented: $showingWorkoutSheet) {
+                    WorkoutStartView { log in
+                        // 記録を追加
+                        workoutLogs.insert(log, at: 0)
+
+                        // 1回の動作につき1pt
+                        let basePoints = log.count * log.sets
+
+                        // 2種類の倍率を重複適用
+                        let multiplier =
+                            PointMultiplier.totalRecord(days: totalRecordDays)
+                            * PointMultiplier.streak(days: consecutiveRecordDays)
+
+                        let earnedPoints = Int(
+                            (Double(basePoints) * multiplier).rounded()
+                        )
+
+                        musclePoints += earnedPoints
+                    }
+                }
 
                 // 3. 今週の記録
                 VStack(alignment: .leading, spacing: 12) {
@@ -67,68 +94,77 @@ struct HomeView: View {
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("ホーム")
         .navigationBarTitleDisplayMode(.large)
-        .alert("筋トレ", isPresented: $showingWorkoutAlert) {
-            Button("閉じる", role: .cancel) { }
-        } message: {
-            Text("筋トレ実行画面は今後実装します。")
-        }
     }
 
-    // MARK: 育成モデル
+    // MARK: 筋トレポイントカード
 
-    private var modelSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("YOUR MODEL")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .foregroundStyle(.secondary)
+    private var pointsSection: some View {
+        let totalMultiplier = PointMultiplier.totalRecord(
+            days: totalRecordDays
+        )
+        let streakMultiplier = PointMultiplier.streak(
+            days: consecutiveRecordDays
+        )
+        let totalMultiplierValue = totalMultiplier * streakMultiplier
 
-                    Text("トレーニングモデル")
-                        .font(.title3.bold())
+        return VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("MUSCLE POINT", systemImage: "bolt.fill")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
 
-                    Text("Lv. 1")
-                        .font(.subheadline)
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(musclePoints.formatted())
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .contentTransition(.numericText())
+
+                    Text("pt")
+                        .font(.headline)
                         .foregroundStyle(.secondary)
                 }
 
-                Spacer()
-
-                Image(systemName: "arrow.up.right")
-                    .foregroundStyle(.secondary)
-            }
-
-            // 仮のモデル表示
-            ZStack {
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.accentColor.opacity(0.10))
-
-                Image(
-                    systemName: "figure.strengthtraining.traditional"
-                )
-                .resizable()
-                .scaledToFit()
-                .foregroundStyle(Color.accentColor)
-                .frame(height: 100)
-            }
-            .frame(height: 160)
-
-            HStack {
-                Text("次の成長まで")
+                Text("筋トレを続けてポイントを増やそう！")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Text("25%")
-                    .font(.caption.bold())
             }
 
-            ProgressView(value: 0.25)
-                .tint(.accentColor)
+            Divider()
 
-            Text("筋トレを続けてモデルを成長させよう！")
+            VStack(alignment: .leading, spacing: 14) {
+                Text("ポイント倍率")
+                    .font(.headline)
+
+                multiplierRow(
+                    title: "総記録日数ボーナス",
+                    subtitle: "\(totalRecordDays)日記録",
+                    multiplier: totalMultiplier,
+                    icon: "calendar"
+                )
+
+                multiplierRow(
+                    title: "連続記録ボーナス",
+                    subtitle: "\(consecutiveRecordDays)日連続",
+                    multiplier: streakMultiplier,
+                    icon: "flame.fill"
+                )
+
+                Divider()
+
+                HStack {
+                    Text("合計倍率")
+                        .font(.subheadline.bold())
+
+                    Spacer()
+
+                    Text(
+                        "× \(totalMultiplierValue, specifier: "%.2f")"
+                    )
+                    .font(.title2.bold())
+                    .foregroundStyle(.orange)
+                }
+            }
+
+            Text("筋トレの記録を保存すると，自動でポイントが加算されます。")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -137,6 +173,38 @@ struct HomeView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20))
     }
 
+    // MARK: 倍率表示
+
+    private func multiplierRow(
+        title: String,
+        subtitle: String,
+        multiplier: Double,
+        icon: String
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(.orange)
+                .frame(width: 40, height: 40)
+                .background(Color.orange.opacity(0.10))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.subheadline.bold())
+
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Text("× \(multiplier, specifier: "%.2f")")
+                .font(.headline.monospacedDigit())
+                .foregroundStyle(.orange)
+        }
+    }
     // MARK: 筋トレログ
 
     private var workoutLogSection: some View {
@@ -242,6 +310,27 @@ private struct WorkoutLog: Identifiable {
                 sets: 3
             )
         ]
+    }
+}
+
+// MARK: - ポイント倍率計算
+
+private enum PointMultiplier {
+
+    /// 総記録日数：5日ごとに +0.20倍
+    static func totalRecord(days: Int) -> Double {
+        let bonusSteps = max(0, days) / 5
+        return 1.0 + Double(bonusSteps) * 0.20
+    }
+
+    /// 連続記録日数：3日目から3日ごとに +0.25倍
+    static func streak(days: Int) -> Double {
+        guard days >= 3 else {
+            return 1.0
+        }
+
+        let bonusSteps = (days - 1) / 3
+        return 1.0 + Double(bonusSteps) * 0.25
     }
 }
 
@@ -367,3 +456,75 @@ private struct WeeklyRecordCalendar: View {
         .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
+private struct WorkoutStartView: View {
+    let onSave: (WorkoutLog) -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var selectedMenu = "腕立て伏せ"
+    @State private var count = 10
+    @State private var sets = 3
+
+    private let menus = [
+        "腕立て伏せ",
+        "腹筋",
+        "スクワット"
+    ]
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("トレーニングメニュー") {
+                    Picker("種目", selection: $selectedMenu) {
+                        ForEach(menus, id: \.self) { menu in
+                            Text(menu).tag(menu)
+                        }
+                    }
+
+                    Stepper(
+                        "1セットの回数：\(count)回",
+                        value: $count,
+                        in: 1...500
+                    )
+
+                    Stepper(
+                        "セット数：\(sets)セット",
+                        value: $sets,
+                        in: 1...20
+                    )
+                }
+
+                Section {
+                    Button("記録を保存") {
+                        let log = WorkoutLog(
+                            date: Date(),
+                            menu: selectedMenu,
+                            count: count,
+                            sets: sets
+                        )
+
+                        // 保存処理を1回だけ呼び出す
+                        onSave(log)
+                        dismiss()
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+
+                Section {
+                    Text("獲得ポイントの基礎値：\(count * sets) pt")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("筋トレを記録")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
