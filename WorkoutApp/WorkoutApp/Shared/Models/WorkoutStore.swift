@@ -20,12 +20,50 @@ final class WorkoutStore: ObservableObject {
         let multiplier =
             PointMultiplier.totalRecord(days: totalRecordDays)
             * PointMultiplier.streak(days: consecutiveRecordDays)
+            * gachaPointMultiplier
 
         let earnedPoints = Int(
             (Double(basePoints) * multiplier).rounded()
         )
 
         musclePoints += earnedPoints
+    }
+    // ガチャの状態
+    @Published var totalGachaRolls = 0
+    @Published var proteinCount = 0
+    @Published var steroidCount = 0
+    @Published var ownedSkins: [String] = []
+
+    // ガチャの基本設定
+    let initialGachaCost = 100
+    let gachaCostMultiplier = 1.5
+    let gachaRollsPerStep = 10
+
+    // ガチャの現在価格
+    var currentGachaCost: Int {
+        let stage = totalGachaRolls / gachaRollsPerStep
+        return Int(
+            ceil(
+                Double(initialGachaCost)
+                * pow(gachaCostMultiplier, Double(stage))
+            )
+        )
+    }
+
+    // ガチャアイテムによるポイント獲得倍率
+    var gachaPointMultiplier: Double {
+        1.0
+        + Double(proteinCount) * 0.05
+        + Double(steroidCount) * 0.20
+    }
+    // ガチャのポイント消費
+    func spendGachaPoints(_ amount: Int) -> Bool {
+        guard amount >= 0, musclePoints >= amount else {
+            return false
+        }
+
+        musclePoints -= amount
+        return true
     }
 }
 
@@ -47,3 +85,4 @@ enum PointMultiplier {
         return 1.0 + Double(bonusSteps) * 0.25
     }
 }
+
