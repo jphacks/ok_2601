@@ -2,6 +2,8 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @StateObject private var workoutStore = WorkoutStore()
+    
     var body: some View {
         TabView {
             NavigationStack {
@@ -37,7 +39,8 @@ struct MainTabView: View {
             }
             .tabItem {
                 Label("ガチャ", systemImage: "sparkles")
-            }
+            }            
         }
+        .environmentObject(workoutStore)
     }
 }

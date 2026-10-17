@@ -4,6 +4,8 @@ import SwiftUI
 // MARK: - ホーム画面
 
 struct HomeView: View {
+    @EnvironmentObject private var workoutStore: WorkoutStore
+
     @State private var showingWorkoutSheet = false
 
     @State private var selectedDate =
@@ -15,9 +17,6 @@ struct HomeView: View {
     // 仮の記録実績
     @State private var totalRecordDays = 12
     @State private var consecutiveRecordDays = 3
-
-    // 記録データ
-    @State private var workoutLogs = WorkoutLog.samples
 
     var body: some View {
         ScrollView {
@@ -45,13 +44,14 @@ struct HomeView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 .buttonStyle(.plain)
+                
                 .sheet(isPresented: $showingWorkoutSheet) {
-                    WorkoutStartView { log in
-                        // 記録を追加
-                        workoutLogs.insert(log, at: 0)
+                    WorkoutStartView { record in
+                        // 共通ストアに記録を追加
+                        workoutStore.add(record)
 
-                        // 1回の動作につき1pt
-                        let basePoints = log.count * log.sets
+                        // 1回の動作につき1ptを基礎値とする
+                        let basePoints = record.count * record.sets
 
                         // 2種類の倍率を重複適用
                         let multiplier =
@@ -66,6 +66,7 @@ struct HomeView: View {
                     }
                 }
 
+
                 // 3. 今週の記録
                 VStack(alignment: .leading, spacing: 12) {
                     sectionTitle(
@@ -75,7 +76,7 @@ struct HomeView: View {
 
                     WeeklyRecordCalendar(
                         selectedDate: $selectedDate,
-                        workoutLogs: workoutLogs
+                        workoutLogs: workoutStore.records
                     )
                 }
 
@@ -209,7 +210,7 @@ struct HomeView: View {
 
     private var workoutLogSection: some View {
         VStack(spacing: 0) {
-            ForEach(Array(workoutLogs.prefix(5).enumerated()), id: \.element.id) {
+            ForEach(Array(workoutStore.records.prefix(5).enumerated()), id: \.element.id) {
                 index, log in
 
                 HStack(spacing: 12) {
@@ -246,7 +247,7 @@ struct HomeView: View {
                 }
                 .padding(.vertical, 12)
 
-                if index < min(workoutLogs.count, 5) - 1 {
+                if index < min(workoutStore.records.count, 5) - 1 {
                     Divider()
                 }
             }
@@ -270,46 +271,6 @@ struct HomeView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
-    }
-}
-
-// MARK: - 仮の筋トレ記録
-
-private struct WorkoutLog: Identifiable {
-    let id = UUID()
-    let date: Date
-    let menu: String
-    let count: Int
-    let sets: Int
-
-    static var samples: [WorkoutLog] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-
-        return [
-            WorkoutLog(
-                date: today,
-                menu: "腕立て伏せ",
-                count: 10,
-                sets: 3
-            ),
-            WorkoutLog(
-                date: calendar.date(
-                    byAdding: .day, value: -1, to: today
-                ) ?? today,
-                menu: "スクワット",
-                count: 20,
-                sets: 2
-            ),
-            WorkoutLog(
-                date: calendar.date(
-                    byAdding: .day, value: -3, to: today
-                ) ?? today,
-                menu: "腹筋",
-                count: 15,
-                sets: 3
-            )
-        ]
     }
 }
 
@@ -338,7 +299,7 @@ private enum PointMultiplier {
 
 private struct WeeklyRecordCalendar: View {
     @Binding var selectedDate: Date
-    let workoutLogs: [WorkoutLog]
+    let workoutLogs: [WorkoutRecord]
 
     private let calendar = Calendar.current
     private let weekdays = ["月", "火", "水", "木", "金", "土", "日"]
@@ -457,7 +418,7 @@ private struct WeeklyRecordCalendar: View {
     }
 }
 private struct WorkoutStartView: View {
-    let onSave: (WorkoutLog) -> Void
+    let onSave: (WorkoutRecord) -> Void
 
     @Environment(\.dismiss) private var dismiss
 
@@ -496,23 +457,17 @@ private struct WorkoutStartView: View {
 
                 Section {
                     Button("記録を保存") {
-                        let log = WorkoutLog(
+                        let record = WorkoutRecord(
                             date: Date(),
                             menu: selectedMenu,
                             count: count,
                             sets: sets
                         )
 
-                        // 保存処理を1回だけ呼び出す
-                        onSave(log)
+                        onSave(record)
                         dismiss()
                     }
                     .frame(maxWidth: .infinity)
-                }
-
-                Section {
-                    Text("獲得ポイントの基礎値：\(count * sets) pt")
-                        .foregroundStyle(.secondary)
                 }
             }
             .navigationTitle("筋トレを記録")
@@ -527,4 +482,3 @@ private struct WorkoutStartView: View {
         }
     }
 }
-
