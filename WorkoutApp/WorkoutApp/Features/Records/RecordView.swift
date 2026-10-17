@@ -1,17 +1,190 @@
+
 import SwiftUI
 
+struct RecordItem: Identifiable {
+    let id = UUID()
+    var date: Date
+    var menu: String
+    var reps: Int
+    var sets: Int
+    var weight: Double
+}
+
 struct RecordView: View {
+    @State private var records: [RecordItem] = []
+
+    @State private var selectedDate = Date()
+    @State private var selectedMenu = "腹筋"
+    @State private var reps = 20
+    @State private var sets = 3
+    @State private var weight = 0.0
+
+    private let menus = [
+        "腹筋",
+        "腕立て伏せ",
+        "スクワット",
+        "その他"
+    ]
+
     var body: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "list.clipboard")
-                .font(.largeTitle)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
 
-            Text("トレーニング記録")
+                // 入力フォーム
+                VStack(alignment: .leading, spacing: 16) {
+                    Label("トレーニングを記録",
+                          systemImage: "plus.circle.fill")
+                        .font(.headline)
 
-            Text("記録入力機能を実装予定")
+                    DatePicker(
+                        "日付",
+                        selection: $selectedDate,
+                        displayedComponents: .date
+                    )
+
+                    Picker("メニュー", selection: $selectedMenu) {
+                        ForEach(menus, id: \.self) { menu in
+                            Text(menu).tag(menu)
+                        }
+                    }
+
+                    Stepper(
+                        "回数：\(reps) 回",
+                        value: $reps,
+                        in: 1...1000
+                    )
+
+                    Stepper(
+                        "セット数：\(sets) セット",
+                        value: $sets,
+                        in: 1...100
+                    )
+
+                    HStack {
+                        Text("重量")
+
+                        Spacer()
+
+                        TextField(
+                            "0",
+                            value: $weight,
+                            format: .number
+                        )
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 100)
+
+                        Text("kg")
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Button {
+                        addRecord()
+                    } label: {
+                        Label("記録を追加", systemImage: "plus")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
+                .background(
+                    Color(uiColor: .secondarySystemGroupedBackground)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                // 記録一覧
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("記録一覧")
+                        .font(.headline)
+
+                    if records.isEmpty {
+                        ContentUnavailableView(
+                            "記録はありません",
+                            systemImage: "list.clipboard",
+                            description: Text(
+                                "トレーニング内容を入力して記録しましょう"
+                            )
+                        )
+                        .frame(maxWidth: .infinity)
+                    } else {
+                        ForEach(
+                            records.sorted {
+                                $0.date > $1.date
+                            }
+                        ) { record in
+                            recordRow(record)
+                        }
+                        //.onDeleteRecordPlaceholder()
+                    }
+                }
+            }
+            .padding()
+        }
+        .navigationTitle("記録")
+    }
+
+    // 記録カード
+    private func recordRow(_ record: RecordItem) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: "dumbbell.fill")
+                .font(.title2)
+                .foregroundStyle(.blue)
+                .frame(width: 44, height: 44)
+                .background(Color.blue.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(record.menu)
+                    .font(.headline)
+
+                Text(
+                    record.date.formatted(
+                        date: .numeric,
+                        time: .omitted
+                    )
+                )
+                .font(.caption)
                 .foregroundStyle(.secondary)
+
+                Text(
+                    "\(record.reps) 回 × \(record.sets) セット"
+                )
+                .font(.subheadline)
+
+                if record.weight > 0 {
+                    Text(
+                        "重量：\(record.weight, specifier: "%.1f") kg"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer()
         }
         .padding()
-        .navigationTitle("記録")
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            Color(uiColor: .secondarySystemGroupedBackground)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // 記録追加
+    private func addRecord() {
+        let record = RecordItem(
+            date: selectedDate,
+            menu: selectedMenu,
+            reps: reps,
+            sets: sets,
+            weight: max(0, weight)
+        )
+
+        records.append(record)
+
+        // 次の入力に備えて初期値に戻す
+        reps = 20
+        sets = 3
+        weight = 0
     }
 }
