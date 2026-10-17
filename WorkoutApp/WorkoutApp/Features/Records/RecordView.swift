@@ -1,17 +1,8 @@
 
 import SwiftUI
 
-struct RecordItem: Identifiable {
-    let id = UUID()
-    var date: Date
-    var menu: String
-    var reps: Int
-    var sets: Int
-    var weight: Double
-}
-
 struct RecordView: View {
-    @State private var records: [RecordItem] = []
+    @EnvironmentObject private var workoutStore: WorkoutStore
 
     @State private var selectedDate = Date()
     @State private var selectedMenu = "腹筋"
@@ -32,9 +23,11 @@ struct RecordView: View {
 
                 // 入力フォーム
                 VStack(alignment: .leading, spacing: 16) {
-                    Label("トレーニングを記録",
-                          systemImage: "plus.circle.fill")
-                        .font(.headline)
+                    Label(
+                        "トレーニングを記録",
+                        systemImage: "plus.circle.fill"
+                    )
+                    .font(.headline)
 
                     DatePicker(
                         "日付",
@@ -81,8 +74,11 @@ struct RecordView: View {
                     Button {
                         addRecord()
                     } label: {
-                        Label("記録を追加", systemImage: "plus")
-                            .frame(maxWidth: .infinity)
+                        Label(
+                            "記録を追加",
+                            systemImage: "plus"
+                        )
+                        .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -97,7 +93,7 @@ struct RecordView: View {
                     Text("記録一覧")
                         .font(.headline)
 
-                    if records.isEmpty {
+                    if workoutStore.records.isEmpty {
                         ContentUnavailableView(
                             "記録はありません",
                             systemImage: "list.clipboard",
@@ -108,13 +104,12 @@ struct RecordView: View {
                         .frame(maxWidth: .infinity)
                     } else {
                         ForEach(
-                            records.sorted {
+                            workoutStore.records.sorted {
                                 $0.date > $1.date
                             }
                         ) { record in
                             recordRow(record)
                         }
-                        //.onDeleteRecordPlaceholder()
                     }
                 }
             }
@@ -124,7 +119,7 @@ struct RecordView: View {
     }
 
     // 記録カード
-    private func recordRow(_ record: RecordItem) -> some View {
+    private func recordRow(_ record: WorkoutRecord) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "dumbbell.fill")
                 .font(.title2)
@@ -146,10 +141,8 @@ struct RecordView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-                Text(
-                    "\(record.reps) 回 × \(record.sets) セット"
-                )
-                .font(.subheadline)
+                Text("\(record.count) 回 × \(record.sets) セット")
+                    .font(.subheadline)
 
                 if record.weight > 0 {
                     Text(
@@ -172,15 +165,15 @@ struct RecordView: View {
 
     // 記録追加
     private func addRecord() {
-        let record = RecordItem(
+        let record = WorkoutRecord(
             date: selectedDate,
             menu: selectedMenu,
-            reps: reps,
+            count: reps,
             sets: sets,
             weight: max(0, weight)
         )
 
-        records.append(record)
+        workoutStore.add(record)
 
         // 次の入力に備えて初期値に戻す
         reps = 20

@@ -11,12 +11,6 @@ struct HomeView: View {
     @State private var selectedDate =
         Calendar.current.startOfDay(for: Date())
 
-    // ポイント残高
-    @State private var musclePoints = 0
-
-    // 仮の記録実績
-    @State private var totalRecordDays = 12
-    @State private var consecutiveRecordDays = 3
 
     var body: some View {
         ScrollView {
@@ -47,22 +41,7 @@ struct HomeView: View {
                 
                 .sheet(isPresented: $showingWorkoutSheet) {
                     WorkoutStartView { record in
-                        // 共通ストアに記録を追加
                         workoutStore.add(record)
-
-                        // 1回の動作につき1ptを基礎値とする
-                        let basePoints = record.count * record.sets
-
-                        // 2種類の倍率を重複適用
-                        let multiplier =
-                            PointMultiplier.totalRecord(days: totalRecordDays)
-                            * PointMultiplier.streak(days: consecutiveRecordDays)
-
-                        let earnedPoints = Int(
-                            (Double(basePoints) * multiplier).rounded()
-                        )
-
-                        musclePoints += earnedPoints
                     }
                 }
 
@@ -101,12 +80,15 @@ struct HomeView: View {
 
     private var pointsSection: some View {
         let totalMultiplier = PointMultiplier.totalRecord(
-            days: totalRecordDays
+            days: workoutStore.totalRecordDays
         )
+
         let streakMultiplier = PointMultiplier.streak(
-            days: consecutiveRecordDays
+            days: workoutStore.consecutiveRecordDays
         )
+
         let totalMultiplierValue = totalMultiplier * streakMultiplier
+
 
         return VStack(alignment: .leading, spacing: 18) {
             VStack(alignment: .leading, spacing: 6) {
@@ -115,7 +97,7 @@ struct HomeView: View {
                     .foregroundStyle(.secondary)
 
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(musclePoints.formatted())
+                    Text(workoutStore.musclePoints.formatted())
                         .font(.system(size: 36, weight: .bold, design: .rounded))
                         .contentTransition(.numericText())
 
@@ -137,14 +119,14 @@ struct HomeView: View {
 
                 multiplierRow(
                     title: "総記録日数ボーナス",
-                    subtitle: "\(totalRecordDays)日記録",
+                    subtitle: "\(workoutStore.totalRecordDays)日記録",
                     multiplier: totalMultiplier,
                     icon: "calendar"
                 )
 
                 multiplierRow(
                     title: "連続記録ボーナス",
-                    subtitle: "\(consecutiveRecordDays)日連続",
+                    subtitle: "\(workoutStore.consecutiveRecordDays)日連続",
                     multiplier: streakMultiplier,
                     icon: "flame.fill"
                 )
@@ -274,26 +256,6 @@ struct HomeView: View {
     }
 }
 
-// MARK: - ポイント倍率計算
-
-private enum PointMultiplier {
-
-    /// 総記録日数：5日ごとに +0.20倍
-    static func totalRecord(days: Int) -> Double {
-        let bonusSteps = max(0, days) / 5
-        return 1.0 + Double(bonusSteps) * 0.20
-    }
-
-    /// 連続記録日数：3日目から3日ごとに +0.25倍
-    static func streak(days: Int) -> Double {
-        guard days >= 3 else {
-            return 1.0
-        }
-
-        let bonusSteps = (days - 1) / 3
-        return 1.0 + Double(bonusSteps) * 0.25
-    }
-}
 
 // MARK: - 週表示カレンダー
 
