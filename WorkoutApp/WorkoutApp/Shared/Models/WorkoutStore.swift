@@ -30,6 +30,22 @@ final class WorkoutStore: ObservableObject {
         musclePoints += earnedPoints
         totalEarnedPoints += earnedPoints
     }
+
+        // 記録を編集
+    func update(_ updatedRecord: WorkoutRecord) {
+        guard let index = records.firstIndex(
+            where: { $0.id == updatedRecord.id }
+        ) else {
+            return
+        }
+
+        records[index] = updatedRecord
+    }
+
+    // 記録を削除
+    func delete(_ record: WorkoutRecord) {
+        records.removeAll { $0.id == record.id }
+    }
     // ガチャの状態
     @Published var totalGachaRolls = 0
     @Published var proteinCount = 0

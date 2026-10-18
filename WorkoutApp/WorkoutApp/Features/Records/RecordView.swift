@@ -117,6 +117,27 @@ struct RecordView: View {
             .padding()
         }
         .navigationTitle("記録")
+        .confirmationDialog(
+            "この記録を削除しますか？",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("削除する", role: .destructive) {
+                if let record = deletingRecord {
+                    workoutStore.delete(record)
+                }
+                deletingRecord = nil
+            }
+
+            Button("キャンセル", role: .cancel) {
+                deletingRecord = nil
+            }
+        }
+        .sheet(item: $editingRecord) { record in
+            WorkoutEditView(record: record) { updatedRecord in
+                workoutStore.update(updatedRecord)
+            }
+        }
     }
 
     // 記録カード
@@ -150,17 +171,40 @@ struct RecordView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("\(record.count) 回 × \(record.sets) セット")
-                    .font(.subheadline)
+                    Text(record.date.formatted(date: .numeric, time: .omitted))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                 if record.weight > 0 {
                     Text("重量：\(record.weight, specifier: "%.1f") kg")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-            }
 
-            Spacer()
+                Spacer()
+
+                VStack(spacing: 12) {
+                    Button {
+                        editingRecord = record
+                    } label: {
+                        Image(systemName: "pencil")
+                    }
+                    .tint(.blue)
+
+                    Button(role: .destructive) {
+                        deletingRecord = record
+                        showDeleteConfirmation = true
+                    } label: {
+                        Image(systemName: "trash")
+                    }
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                Color(uiColor: .secondarySystemGroupedBackground)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
