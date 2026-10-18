@@ -38,7 +38,7 @@ struct EvolutionView: View {
         VStack(spacing: 0) {
             // 3Dモデル表示エリア
             ThreeDModelContainerView(
-                modelFileName: "Untitled_1.obj",
+                modelFileName: "musle.obj",
                 scales: scales
             )
             .frame(height: 350)
