@@ -2,7 +2,11 @@ import SwiftUI
 
 struct RecordView: View {
     @EnvironmentObject private var workoutStore: WorkoutStore
-
+    
+    @State private var showDeleteConfirmation = false
+    @State private var deletingRecord: WorkoutRecord? = nil
+    @State private var editingRecord: WorkoutRecord? = nil
+    
     @State private var selectedDate = Date()
     @State private var selectedMenu = "腹筋"
     @State private var reps = 20
