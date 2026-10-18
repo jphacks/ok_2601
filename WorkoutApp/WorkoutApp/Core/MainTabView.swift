@@ -39,7 +39,14 @@ struct MainTabView: View {
             }
             .tabItem {
                 Label("ガチャ", systemImage: "sparkles")
-            }            
+            }
+            
+            NavigationStack {
+                StatisticsView()
+            }
+            .tabItem {
+                Label("統計", systemImage: "chart.bar")
+            }
         }
         .environmentObject(workoutStore)
     }

@@ -6,6 +6,7 @@ import Combine
 final class WorkoutStore: ObservableObject {
     @Published private(set) var records: [WorkoutRecord] = []
     @Published private(set) var musclePoints = 0
+    @Published private(set) var totalEarnedPoints = 0
 
     // 現在は仮の記録実績
     let totalRecordDays = 12
@@ -27,6 +28,7 @@ final class WorkoutStore: ObservableObject {
         )
 
         musclePoints += earnedPoints
+        totalEarnedPoints += earnedPoints
     }
     // ガチャの状態
     @Published var totalGachaRolls = 0
