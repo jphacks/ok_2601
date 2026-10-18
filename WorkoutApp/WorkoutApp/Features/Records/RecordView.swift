@@ -122,6 +122,7 @@ struct RecordView: View {
         }
         .navigationTitle("記録")
         
+        
         .confirmationDialog(
             "この記録を削除しますか？",
             isPresented: $showDeleteConfirmation,
@@ -138,6 +139,7 @@ struct RecordView: View {
                 deletingRecord = nil
             }
         }
+
         .sheet(item: $editingRecord) { record in
             WorkoutEditView(record: record) { updatedRecord in
                 workoutStore.update(updatedRecord)
