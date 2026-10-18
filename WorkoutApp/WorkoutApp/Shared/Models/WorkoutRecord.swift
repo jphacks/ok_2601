@@ -2,7 +2,7 @@
 import Foundation
 
 struct WorkoutRecord: Identifiable {
-    var id: UUID
+    let id: UUID
     var date: Date
     var menu: String
     var count: Int
@@ -25,3 +25,4 @@ struct WorkoutRecord: Identifiable {
         self.weight = weight
     }
 }
+

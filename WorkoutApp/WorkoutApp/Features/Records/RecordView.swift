@@ -10,6 +10,10 @@ struct RecordView: View {
     @State private var sets = 3
     @State private var weight = 0.0
 
+    @State private var editingRecord: WorkoutRecord?
+    @State private var deletingRecord: WorkoutRecord?
+    @State private var showDeleteAlert = false
+
     private let menus = [
         "腹筋",
         "腕立て伏せ",
@@ -20,8 +24,7 @@ struct RecordView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-
-                // 入力フォーム
+                // 新しい記録を追加
                 VStack(alignment: .leading, spacing: 16) {
                     Label(
                         "トレーニングを記録",
@@ -55,7 +58,6 @@ struct RecordView: View {
 
                     HStack {
                         Text("重量")
-
                         Spacer()
 
                         TextField(
@@ -74,11 +76,8 @@ struct RecordView: View {
                     Button {
                         addRecord()
                     } label: {
-                        Label(
-                            "記録を追加",
-                            systemImage: "plus"
-                        )
-                        .frame(maxWidth: .infinity)
+                        Label("記録を追加", systemImage: "plus")
+                            .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -116,6 +115,28 @@ struct RecordView: View {
             .padding()
         }
         .navigationTitle("記録")
+        .sheet(item: $editingRecord) { record in
+            WorkoutEditView(record: record) { updatedRecord in
+                workoutStore.update(updatedRecord)
+            }
+        }
+        .alert(
+            "記録を削除しますか？",
+            isPresented: $showDeleteAlert
+        ) {
+            Button("キャンセル", role: .cancel) {
+                deletingRecord = nil
+            }
+
+            Button("削除", role: .destructive) {
+                if let record = deletingRecord {
+                    workoutStore.delete(record)
+                }
+                deletingRecord = nil
+            }
+        } message: {
+            Text("削除した記録は元に戻せません。")
+        }
     }
 
     // 記録カード
@@ -153,7 +174,28 @@ struct RecordView: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 4)
+
+            // 編集ボタン
+            Button {
+                editingRecord = record
+            } label: {
+                Image(systemName: "pencil")
+                    .foregroundStyle(.blue)
+                    .padding(8)
+            }
+            .buttonStyle(.borderless)
+
+            // 削除ボタン
+            Button {
+                deletingRecord = record
+                showDeleteAlert = true
+            } label: {
+                Image(systemName: "trash")
+                    .foregroundStyle(.red)
+                    .padding(8)
+            }
+            .buttonStyle(.borderless)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -163,7 +205,7 @@ struct RecordView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    // 記録追加
+    // 記録を追加
     private func addRecord() {
         let record = WorkoutRecord(
             date: selectedDate,
@@ -175,7 +217,6 @@ struct RecordView: View {
 
         workoutStore.add(record)
 
-        // 次の入力に備えて初期値に戻す
         reps = 20
         sets = 3
         weight = 0
