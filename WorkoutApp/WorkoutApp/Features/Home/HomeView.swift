@@ -381,19 +381,19 @@ private struct WeeklyRecordCalendar: View {
 }
 private struct WorkoutStartView: View {
     let onSave: (WorkoutRecord) -> Void
-
+    
     @Environment(\.dismiss) private var dismiss
-
+    
     @State private var selectedMenu = "腕立て伏せ"
     @State private var count = 10
     @State private var sets = 3
-
+    
     private let menus = [
         "腕立て伏せ",
         "腹筋",
         "スクワット"
     ]
-
+    
     var body: some View {
         NavigationStack {
             Form {
@@ -403,20 +403,20 @@ private struct WorkoutStartView: View {
                             Text(menu).tag(menu)
                         }
                     }
-
+                    
                     Stepper(
                         "1セットの回数：\(count)回",
                         value: $count,
                         in: 1...500
                     )
-
+                    
                     Stepper(
                         "セット数：\(sets)セット",
                         value: $sets,
                         in: 1...20
                     )
                 }
-
+                
                 Section {
                     Button("記録を保存") {
                         let record = WorkoutRecord(
@@ -425,19 +425,20 @@ private struct WorkoutStartView: View {
                             count: count,
                             sets: sets
                         )
-
+                        
                         onSave(record)
                         dismiss()
                     }
                     .frame(maxWidth: .infinity)
                 }
-            }
-            .navigationTitle("筋トレを記録")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("閉じる") {
-                        dismiss()
+                
+                .navigationTitle("筋トレを記録")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("閉じる") {
+                            dismiss()
+                        }
                     }
                 }
             }

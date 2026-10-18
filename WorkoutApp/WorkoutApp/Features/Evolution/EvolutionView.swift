@@ -1,46 +1,7 @@
 import SwiftUI
 import SceneKit
 
-// MARK: - 1. 部位の定義
-
-enum BodyPart: String, CaseIterable, Hashable {
-    case arm = "腕"
-    case chest = "胸"
-    case shoulder = "肩"
-    case abs = "腹筋"
-    case back = "背中"
-    case legs = "脚"
-
-    var growthFileName: String {
-        switch self {
-        case .arm:      return "arm_growth"
-        case .chest:    return "chest_growth"
-        case .shoulder: return "shoulder_growth"
-        case .abs:      return "abs_growth"
-        case .back:     return "back_growth"
-        case .legs:     return "legs_growth"
-        }
-    }
-
-    // 記録メニューと鍛えられる部位を対応させる
-    static func parts(for menu: String) -> [BodyPart] {
-        switch menu {
-        case "腕立て伏せ":
-            return [.arm, .chest, .shoulder]
-
-        case "腹筋":
-            return [.abs]
-
-        case "スクワット":
-            return [.legs]
-
-        default:
-            return []
-        }
-    }
-}
-
-// MARK: - 2. メイン画面
+// MARK: - メイン画面
 
 struct EvolutionView: View {
     @EnvironmentObject private var workoutStore: WorkoutStore
@@ -50,13 +11,12 @@ struct EvolutionView: View {
         Dictionary(
             uniqueKeysWithValues: BodyPart.allCases.map { part in
                 let totalReps = workoutStore.records.reduce(0) { total, record in
-                    guard BodyPart.parts(for: record.menu).contains(part) else {
+                    guard record.targetParts.contains(part) else {
                         return total
                     }
                     return total + max(0, record.count) * max(0, record.sets)
                 }
 
-                // 回数が増えるほど成長形状に近づく
                 let weight = 1.0 - exp(-Double(totalReps) / 500.0)
 
                 return (
@@ -79,14 +39,13 @@ struct EvolutionView: View {
     }
 }
 
-// MARK: - 3. SceneKitによる成長モデル表示
+// MARK: - SceneKitによる成長モデル表示
 
 struct ThreeDModelContainerView: UIViewRepresentable {
     var modelFileName: String
     var growthWeights: [BodyPart: CGFloat]
 
     final class Coordinator {
-        // 実際に読み込めた成長モデルのインデックス
         var targetIndices: [BodyPart: Int] = [:]
         var cameraNode: SCNNode?
         var centerTargetNode: SCNNode?
@@ -101,7 +60,7 @@ struct ThreeDModelContainerView: UIViewRepresentable {
 
         view.allowsCameraControl = true
         view.autoenablesDefaultLighting = true
-        view.backgroundColor = UIColor.systemBackground
+        view.backgroundColor = UIColor.clear
 
         do {
             guard let baseURL = Bundle.main.url(
@@ -116,12 +75,20 @@ struct ThreeDModelContainerView: UIViewRepresentable {
                 options: nil
             )
 
+            // 背景画像の読み込み設定
+            if let bgImage = UIImage(named: "gym_background")
+                ?? loadImageFromBundle(name: "gym_background", ext: "jpeg")
+                ?? loadImageFromBundle(name: "gym_background", ext: "jpg") {
+                baseScene.background.contents = bgImage
+            } else {
+                print("⚠️ 背景画像 gym_background が見つかりません")
+            }
+
             guard let baseNode = findGeometryNode(in: baseScene.rootNode),
                   let baseGeometry = baseNode.geometry else {
                 throw modelError("基本モデルのジオメトリが見つかりません")
             }
 
-            // 【修正ポイント】加算(additive)ではなく正規化(normalized)にして巨大化を防ぐ
             let morpher = SCNMorpher()
             morpher.calculationMode = .normalized
 
@@ -170,7 +137,6 @@ struct ThreeDModelContainerView: UIViewRepresentable {
             modelNode.scale = baseNode.scale
             modelNode.morpher = morpher
 
-            // 元のモデル階層を置き換える
             baseScene.rootNode.childNodes.forEach {
                 $0.removeFromParentNode()
             }
@@ -208,14 +174,12 @@ struct ThreeDModelContainerView: UIViewRepresentable {
             view.scene = baseScene
             view.pointOfView = cameraNode
 
-            // 初期状態の成長度を適用
             applyGrowthWeights(
                 growthWeights,
                 to: morpher,
                 indices: context.coordinator.targetIndices
             )
 
-            // カメラ初期位置の調整
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 self.adjustCamera(in: view, coordinator: context.coordinator, targetNode: modelNode)
             }
@@ -342,7 +306,15 @@ struct ThreeDModelContainerView: UIViewRepresentable {
         SCNTransaction.commit()
     }
 
-    // MARK: - モデル検索
+    // MARK: - ヘルパーメソッド
+
+    private func loadImageFromBundle(name: String, ext: String) -> UIImage? {
+        guard let url = Bundle.main.url(forResource: name, withExtension: ext),
+              let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        return UIImage(data: data)
+    }
 
     private func findGeometryNode(in node: SCNNode) -> SCNNode? {
         if node.geometry != nil {
