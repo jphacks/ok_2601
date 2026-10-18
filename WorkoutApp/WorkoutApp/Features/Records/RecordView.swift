@@ -9,6 +9,9 @@ struct RecordView: View {
     @State private var reps = 20
     @State private var sets = 3
     @State private var weight = 0.0
+    @State private var editingRecord: WorkoutRecord?
+    @State private var deletingRecord: WorkoutRecord?
+    @State private var showDeleteConfirmation = false
 
     private let menus = [
         "腹筋",
@@ -116,44 +119,66 @@ struct RecordView: View {
             .padding()
         }
         .navigationTitle("記録")
+        .confirmationDialog(
+            "この記録を削除しますか？",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("削除する", role: .destructive) {
+                if let record = deletingRecord {
+                    workoutStore.delete(record)
+                }
+                deletingRecord = nil
+            }
+
+            Button("キャンセル", role: .cancel) {
+                deletingRecord = nil
+            }
+        }
     }
 
-    // 記録カード
+        // 記録カード
     private func recordRow(_ record: WorkoutRecord) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "dumbbell.fill")
                 .font(.title2)
                 .foregroundStyle(.blue)
                 .frame(width: 44, height: 44)
-                .background(Color.blue.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(record.menu)
                     .font(.headline)
 
-                Text(
-                    record.date.formatted(
-                        date: .numeric,
-                        time: .omitted
-                    )
-                )
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-                Text("\(record.count) 回 × \(record.sets) セット")
-                    .font(.subheadline)
-
-                if record.weight > 0 {
-                    Text(
-                        "重量：\(record.weight, specifier: "%.1f") kg"
-                    )
+                Text(record.date.formatted(date: .numeric, time: .omitted))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Text("\(record.count) 回 × \(record.sets) セット")
+
+                if record.weight > 0 {
+                    Text("重量：\(record.weight, specifier: "%.1f") kg")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
 
             Spacer()
+
+            VStack(spacing: 12) {
+                Button {
+                    editingRecord = record
+                } label: {
+                    Image(systemName: "pencil")
+                }
+                .tint(.blue)
+
+                Button(role: .destructive) {
+                    deletingRecord = record
+                    showDeleteConfirmation = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+            }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
