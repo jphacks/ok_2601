@@ -2,12 +2,12 @@
 import Foundation
 
 struct WorkoutRecord: Identifiable {
-    let id: UUID
-    let date: Date
-    let menu: String
-    let count: Int
-    let sets: Int
-    let weight: Double
+    var id: UUID
+    var date: Date
+    var menu: String
+    var count: Int
+    var sets: Int
+    var weight: Double
 
     init(
         id: UUID = UUID(),
