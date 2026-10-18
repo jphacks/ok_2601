@@ -12,6 +12,9 @@ struct GachaView: View {
         "ゴールドウェア",
         "レインボーウェア"
     ]
+    private var gacha10Cost: Int {
+        Int(ceil(Double(workoutStore.currentGachaCost) * 10 * 0.9))
+    }
 
     var body: some View {
         NavigationStack {
@@ -80,6 +83,25 @@ struct GachaView: View {
                             workoutStore.musclePoints
                             < workoutStore.currentGachaCost
                         )
+                        Button(action: drawGacha10) {
+                            VStack(spacing: 4) {
+                                Text("10連ガチャ")
+                                    .font(.headline)
+
+                                Text("\(gacha10Cost) pt（10% OFF）")
+                                    .font(.subheadline)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(
+                                workoutStore.musclePoints >= gacha10Cost
+                                ? Color.purple
+                                : Color.gray
+                            )
+                            .foregroundStyle(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .disabled(workoutStore.musclePoints < gacha10Cost)
                     }
                     .padding()
                     .frame(maxWidth: .infinity)
@@ -169,48 +191,17 @@ struct GachaView: View {
     private func drawGacha() {
         let cost = workoutStore.currentGachaCost
 
-        guard workoutStore.musclePoints >= cost else {
-            resultMessage = "ポイントが不足しています。"
-            showResult = true
-            return
-        }
-
         guard workoutStore.spendGachaPoints(cost) else {
             resultMessage = "ポイントが不足しています。"
             showResult = true
             return
         }
 
-        workoutStore.totalGachaRolls += 1
-        
-        // 抽選回数を増加
+        let prize = drawPrize()
         workoutStore.totalGachaRolls += 1
 
-        let random = Int.random(in: 1...100)
-
-        if random <= 15 {
-            drawSkin()
-        } else if random <= 20 {
-            workoutStore.steroidCount += 1
-
-            resultMessage = """
-            ステロイドを獲得！
-
-            筋トレポイントの獲得倍率が
-            +0.20倍されました。
-            """
-        } else {
-            workoutStore.proteinCount += 1
-
-            resultMessage = """
-            プロテインを獲得！
-
-            筋トレポイントの獲得倍率が
-            +0.05倍されました。
-            """
-        }
-
-        resultMessage += """
+        resultMessage = """
+        \(prize)
 
         現在のポイント獲得倍率：
         \(String(
@@ -222,9 +213,80 @@ struct GachaView: View {
         showResult = true
     }
 
+    private func drawGacha10() {
+        // 購入時点の単発価格を使って10連価格を計算する
+        let singleCost = workoutStore.currentGachaCost
+        let cost = Int(ceil(Double(singleCost) * 10 * 0.9))
+
+        guard workoutStore.spendGachaPoints(cost) else {
+            resultMessage = "ポイントが不足しています。"
+            showResult = true
+            return
+        }
+
+        var results: [String] = []
+
+        for _ in 0..<10 {
+            results.append(drawPrize())
+        }
+
+        // 累計ガチャ回数を10回増やす
+        workoutStore.totalGachaRolls += 10
+
+        // 同じ結果をまとめて表示する
+        var counts: [String: Int] = [:]
+        var order: [String] = []
+
+        for prize in results {
+            if counts[prize] == nil {
+                order.append(prize)
+                counts[prize] = 0
+            }
+            counts[prize, default: 0] += 1
+        }
+
+        let summary = order.map { prize in
+            "\(prize) × \(counts[prize]!)"
+        }.joined(separator: "\n")
+
+        resultMessage = """
+        10連ガチャ結果！
+
+        \(summary)
+
+        消費ポイント：\(cost) pt
+        割引前：\(singleCost * 10) pt
+        割引：10%
+
+        現在のポイント獲得倍率：
+        \(String(
+            format: "%.2f",
+            workoutStore.gachaPointMultiplier
+        ))倍
+        """
+
+        showResult = true
+    }
+
+    // MARK: - 1回分の抽選
+
+    private func drawPrize() -> String {
+        let random = Int.random(in: 1...100)
+
+        if random <= 15 {
+            return drawSkin()
+        } else if random <= 20 {
+            workoutStore.steroidCount += 1
+            return "ステロイド"
+        } else {
+            workoutStore.proteinCount += 1
+            return "プロテイン"
+        }
+    }
+
     // MARK: - スキン抽選
 
-    private func drawSkin() {
+    private func drawSkin() -> String {
         let availableSkins = skinPool.filter {
             !workoutStore.ownedSkins.contains($0)
         }
@@ -232,24 +294,12 @@ struct GachaView: View {
         guard let skin = availableSkins.randomElement() else {
             // 全スキン獲得後はプロテインに変換
             workoutStore.proteinCount += 1
-
-            resultMessage = """
-            スキンはすべて獲得済みです。
-
-            代わりにプロテインを獲得しました。
-            """
-            return
+            return "プロテイン（スキン重複分の変換）"
         }
 
         workoutStore.ownedSkins.append(skin)
-
-        resultMessage = """
-        新しいスキンを獲得！
-
-        \(skin)
-        """
+        return "新しいスキン：\(skin)"
     }
-
     // MARK: - 表示用パーツ
 
     private func prizeRow(
