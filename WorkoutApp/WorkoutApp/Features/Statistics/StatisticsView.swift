@@ -343,6 +343,16 @@ struct StatisticsView: View {
             .padding()
         }
         .navigationTitle("統計")
+        .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        NavigationLink {
+                            WorkoutMotionView()
+                        } label: {
+                            Image(systemName: "figure.mixed.cardio")
+                        }
+                        .accessibilityLabel("モーション検知テスト")
+                    }
+                }
     }
 
     // MARK: - 累計カード
