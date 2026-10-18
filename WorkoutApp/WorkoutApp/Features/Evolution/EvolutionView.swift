@@ -1,160 +1,342 @@
 import SwiftUI
 import SceneKit
 
-// MARK: - 1. 部位の定義
-enum BodyPart: String, CaseIterable {
-    case arm = "腕"
-    case chest = "胸"
-    case shoulder = "肩"
-    case abs = "腹筋"
-    case back = "背中"
-    case legs = "脚"
-    
-    var nodeNames: [String] {
-        switch self {
-        case .arm:      return ["J_Bip_L_UpperArm", "J_Bip_R_UpperArm", "J_Bip_L_Forearm", "J_Bip_R_Forearm", "L_UpperArm", "R_UpperArm"]
-        case .chest:    return ["J_Sec_L_Bust1", "J_Sec_R_Bust1", "J_Bip_C_Chest", "Chest", "UpperChest"]
-        case .shoulder: return ["J_Bip_L_Shoulder", "J_Bip_R_Shoulder", "L_Shoulder", "R_Shoulder"]
-        case .abs:      return ["J_Bip_C_Spine", "Spine", "Abdomen"]
-        case .back:     return ["J_Bip_C_UpperChest", "UpperChest", "Spine1"]
-        case .legs:     return ["J_Bip_L_UpperLeg", "J_Bip_R_UpperLeg", "J_Bip_L_LowerLeg", "J_Bip_R_LowerLeg", "L_Thigh", "R_Thigh"]
-        }
-    }
-}
+// MARK: - メイン画面
 
-// MARK: - 2. メイン画面（変化タブ）
 struct EvolutionView: View {
-    @State private var scales: [BodyPart: Float] = [
-        .arm: 1.0, .chest: 1.0, .shoulder: 1.0,
-        .abs: 1.0, .back: 1.0, .legs: 1.0
-    ]
-    
-    let growthAmount: Float = 0.08
-    let cardioShrinkAmount: Float = 0.03
-    let minScale: Float = 0.8
-    let maxScale: Float = 2.0
+    @EnvironmentObject private var workoutStore: WorkoutStore
+
+    // 記録済みの総回数から部位ごとの成長度を計算
+    private var growthWeights: [BodyPart: CGFloat] {
+        Dictionary(
+            uniqueKeysWithValues: BodyPart.allCases.map { part in
+                let totalReps = workoutStore.records.reduce(0) { total, record in
+                    guard record.targetParts.contains(part) else {
+                        return total
+                    }
+                    return total + max(0, record.count) * max(0, record.sets)
+                }
+
+                let weight = 1.0 - exp(-Double(totalReps) / 500.0)
+
+                return (
+                    part,
+                    CGFloat(min(max(weight, 0), 1))
+                )
+            }
+        )
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // 3Dモデル表示エリア
-            ThreeDModelContainerView(
-                modelFileName: "Untitled_1.obj",
-                scales: scales
-            )
-            .frame(height: 350)
-            
-            Divider()
-            
-            // 動作テスト用UI
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("筋トレ記録・連携テスト (仮)")
-                        .font(.headline)
-                        .padding(.top)
-                    
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        ForEach(BodyPart.allCases, id: \.self) { part in
-                            Button(action: {
-                                recordWorkout(part: part)
-                            }) {
-                                HStack {
-                                    Text("\(part.rawValue)トレ")
-                                    Spacer()
-                                    Text(String(format: "x%.2f", scales[part] ?? 1.0))
-                                        .font(.caption2)
-                                        .bold()
-                                }
-                                .padding(8)
-                                .background(Color.blue.opacity(0.1))
-                                .cornerRadius(8)
-                            }
-                        }
-                    }
-                    
-                    Button(action: {
-                        recordCardio()
-                    }) {
-                        Label("🏃 有酸素運動を行う (微減)", systemImage: "figure.run")
-                            .frame(maxWidth: .infinity)
-                            .padding(10)
-                            .background(Color.orange.opacity(0.2))
-                            .cornerRadius(10)
-                    }
-                    .padding(.top, 5)
-                }
-                .padding(.horizontal)
-            }
-        }
-        .navigationTitle("3D成長変化")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-    
-    // 筋トレ記録処理
-    private func recordWorkout(part: BodyPart) {
-        let current = scales[part] ?? 1.0
-        scales[part] = min(current + growthAmount, maxScale)
-    }
-
-    // 有酸素運動記録処理
-    private func recordCardio() {
-        for part in BodyPart.allCases {
-            let current = scales[part] ?? 1.0
-            scales[part] = max(current - cardioShrinkAmount, minScale)
-        }
+        ThreeDModelContainerView(
+            modelFileName: "musle",
+            growthWeights: growthWeights
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(uiColor: .systemBackground))
+        .ignoresSafeArea()
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
-// MARK: - 3. SceneKit 描画 ＆ スケール適用ビュー
+// MARK: - SceneKitによる成長モデル表示
+
 struct ThreeDModelContainerView: UIViewRepresentable {
     var modelFileName: String
-    var scales: [BodyPart: Float]
-    
-    func makeUIView(context: Context) -> SCNView {
-        let scnView = SCNView()
-        scnView.allowsCameraControl = true
-        scnView.autoenablesDefaultLighting = true
-        scnView.backgroundColor = UIColor.systemGroupedBackground
-        
-        if let scene = SCNScene(named: modelFileName) {
-            scnView.scene = scene
-            
-            // 💡 追加: 読み込んだモデルのマテリアルを明示的に最適化する処理
-            scene.rootNode.enumerateChildNodes { (node, _) in
-                if let geometry = node.geometry {
-                    for material in geometry.materials {
-                        // テクスチャが裏面にも描画されるようにする（服や髪の欠け防止）
-                        material.isDoubleSided = true
-                        // アニメ調モデル（MToon等）の影が黒潰れしないようにBlinnシェーダーを指定
-                        material.lightingModel = .blinn
-                        print("🎨 マテリアル検出: \(material.name ?? "不明")")
-                    }
-                }
-            }
-        } else {
-            let fallbackScene = SCNScene()
-            let box = SCNBox(width: 1, height: 1, length: 1, chamferRadius: 0.1)
-            let material = SCNMaterial()
-            material.diffuse.contents = UIColor.systemRed
-            box.materials = [material]
-            fallbackScene.rootNode.addChildNode(SCNNode(geometry: box))
-            scnView.scene = fallbackScene
-            print("⚠️ \(modelFileName) の読み込みに失敗しました。")
-        }
-        return scnView
+    var growthWeights: [BodyPart: CGFloat]
+
+    final class Coordinator {
+        var targetIndices: [BodyPart: Int] = [:]
+        var cameraNode: SCNNode?
+        var centerTargetNode: SCNNode?
     }
-    
-    func updateUIView(_ uiView: SCNView, context: Context) {
-        guard let scene = uiView.scene else { return }
-        
-        for part in BodyPart.allCases {
-            let scaleValue = scales[part] ?? 1.0
-            for nodeName in part.nodeNames {
-                scene.rootNode.enumerateChildNodes { (node, _) in
-                    if node.name == nodeName {
-                        node.simdScale = SIMD3<Float>(scaleValue, scaleValue, scaleValue)
-                    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> SCNView {
+        let view = SCNView()
+
+        view.allowsCameraControl = true
+        view.autoenablesDefaultLighting = true
+        view.backgroundColor = UIColor.clear
+
+        do {
+            guard let baseURL = Bundle.main.url(
+                forResource: modelFileName,
+                withExtension: "obj"
+            ) else {
+                throw modelError("基本モデル \(modelFileName).obj が見つかりません")
+            }
+
+            let baseScene = try SCNScene(
+                url: baseURL,
+                options: nil
+            )
+
+            // 背景画像の読み込み設定
+            if let bgImage = UIImage(named: "gym_background")
+                ?? loadImageFromBundle(name: "gym_background", ext: "jpeg")
+                ?? loadImageFromBundle(name: "gym_background", ext: "jpg") {
+                baseScene.background.contents = bgImage
+            } else {
+                print("⚠️ 背景画像 gym_background が見つかりません")
+            }
+
+            guard let baseNode = findGeometryNode(in: baseScene.rootNode),
+                  let baseGeometry = baseNode.geometry else {
+                throw modelError("基本モデルのジオメトリが見つかりません")
+            }
+
+            let morpher = SCNMorpher()
+            morpher.calculationMode = .normalized
+
+            let baseVertexCount = baseGeometry.sources(for: .vertex).first?.vectorCount
+
+            // 成長モデルを読み込む
+            for part in BodyPart.allCases {
+                let fileName = part.growthFileName
+
+                guard let url = Bundle.main.url(
+                    forResource: fileName,
+                    withExtension: "obj"
+                ) else {
+                    print("⚠️ 成長モデルがありません: \(fileName).obj")
+                    continue
                 }
+
+                let growthScene = try SCNScene(
+                    url: url,
+                    options: nil
+                )
+
+                guard let growthNode = findGeometryNode(in: growthScene.rootNode),
+                      let growthGeometry = growthNode.geometry else {
+                    print("⚠️ ジオメトリがありません: \(fileName)")
+                    continue
+                }
+
+                let targetVertexCount = growthGeometry.sources(for: .vertex).first?.vectorCount
+
+                guard let baseVertexCount, baseVertexCount == targetVertexCount else {
+                    print("⚠️ 頂点数が一致しません: \(fileName)")
+                    continue
+                }
+
+                context.coordinator.targetIndices[part] = morpher.targets.count
+                morpher.targets.append(growthGeometry)
+
+                print("✅ 成長モデル読込: \(fileName)")
+            }
+
+            let modelNode = SCNNode(geometry: baseGeometry)
+            modelNode.name = "growthModel"
+            modelNode.position = baseNode.position
+            modelNode.rotation = baseNode.rotation
+            modelNode.scale = baseNode.scale
+            modelNode.morpher = morpher
+
+            baseScene.rootNode.childNodes.forEach {
+                $0.removeFromParentNode()
+            }
+
+            baseScene.rootNode.addChildNode(modelNode)
+
+            for material in baseGeometry.materials {
+                material.isDoubleSided = true
+                material.lightingModel = .blinn
+            }
+
+            // 注視用ターゲットノードの設置
+            let (minVec, maxVec) = modelNode.boundingBox
+            let centerPos = SCNVector3(
+                x: (minVec.x + maxVec.x) / 2.0,
+                y: (minVec.y + maxVec.y) / 2.0,
+                z: (minVec.z + maxVec.z) / 2.0
+            )
+            let centerTargetNode = SCNNode()
+            centerTargetNode.position = centerPos
+            modelNode.addChildNode(centerTargetNode)
+            context.coordinator.centerTargetNode = centerTargetNode
+
+            // カメラノードのセットアップ
+            let camera = SCNCamera()
+            camera.zNear = 0.01
+            camera.zFar = 100.0
+            
+            let cameraNode = SCNNode()
+            cameraNode.camera = camera
+            cameraNode.name = "mainCamera"
+            baseScene.rootNode.addChildNode(cameraNode)
+            context.coordinator.cameraNode = cameraNode
+
+            view.scene = baseScene
+            view.pointOfView = cameraNode
+
+            applyGrowthWeights(
+                growthWeights,
+                to: morpher,
+                indices: context.coordinator.targetIndices
+            )
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.adjustCamera(in: view, coordinator: context.coordinator, targetNode: modelNode)
+            }
+
+        } catch {
+            print("❌ 3Dモデル読み込みエラー: " + error.localizedDescription)
+
+            let fallbackScene = SCNScene()
+            let box = SCNBox(
+                width: 1,
+                height: 1,
+                length: 1,
+                chamferRadius: 0.1
+            )
+
+            box.firstMaterial?.diffuse.contents = UIColor.systemRed
+
+            fallbackScene.rootNode.addChildNode(
+                SCNNode(geometry: box)
+            )
+
+            view.scene = fallbackScene
+        }
+
+        return view
+    }
+
+    func updateUIView(_ view: SCNView, context: Context) {
+        guard let modelNode = view.scene?.rootNode.childNode(
+            withName: "growthModel",
+            recursively: true
+        ), let morpher = modelNode.morpher else {
+            return
+        }
+
+        applyGrowthWeights(
+            growthWeights,
+            to: morpher,
+            indices: context.coordinator.targetIndices
+        )
+
+        DispatchQueue.main.async {
+            self.adjustCamera(in: view, coordinator: context.coordinator, targetNode: modelNode)
+        }
+    }
+
+    // MARK: - カメラ自動調整
+
+    private func adjustCamera(in view: SCNView, coordinator: Coordinator, targetNode: SCNNode) {
+        guard let cameraNode = coordinator.cameraNode,
+              let centerTargetNode = coordinator.centerTargetNode,
+              let camera = cameraNode.camera else { return }
+
+        let (minVec, maxVec) = targetNode.boundingBox
+        let height = abs(maxVec.y - minVec.y)
+        let width = abs(maxVec.x - minVec.x)
+        let depth = abs(maxVec.z - minVec.z)
+
+        guard height > 0 && width > 0 else { return }
+
+        let centerPos = SCNVector3(
+            x: (minVec.x + maxVec.x) / 2.0,
+            y: (minVec.y + maxVec.y) / 2.0,
+            z: (minVec.z + maxVec.z) / 2.0
+        )
+        centerTargetNode.position = centerPos
+        let worldCenter = centerTargetNode.worldPosition
+
+        let bounds = view.bounds
+        let widthBounds = bounds.width > 0 ? bounds.width : 390
+        let heightBounds = bounds.height > 0 ? bounds.height : 844
+        let aspectRatio = Float(widthBounds / heightBounds)
+
+        let vFovDegrees = Float(camera.fieldOfView > 0 ? camera.fieldOfView : 60.0)
+        let vFovRad = vFovDegrees * .pi / 180.0
+        let hFovRad = 2.0 * atan(tan(vFovRad / 2.0) * aspectRatio)
+
+        let distForHeight = (height / 2.0) / tan(vFovRad / 2.0)
+        let distForWidth = (width / 2.0) / tan(hFovRad / 2.0)
+
+        let requiredDistance = max(distForHeight, distForWidth) * 1.3 + (depth / 2.0)
+
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0.5
+        SCNTransaction.animationTimingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+
+        cameraNode.position = SCNVector3(
+            x: worldCenter.x,
+            y: worldCenter.y,
+            z: worldCenter.z + requiredDistance
+        )
+
+        let lookAt = SCNLookAtConstraint(target: centerTargetNode)
+        lookAt.isGimbalLockEnabled = true
+        cameraNode.constraints = [lookAt]
+
+        SCNTransaction.commit()
+    }
+
+    // MARK: - 成長度の反映
+
+    private func applyGrowthWeights(
+        _ weights: [BodyPart: CGFloat],
+        to morpher: SCNMorpher,
+        indices: [BodyPart: Int]
+    ) {
+        SCNTransaction.begin()
+        SCNTransaction.animationDuration = 0.6
+        SCNTransaction.animationTimingFunction =
+            CAMediaTimingFunction(name: .easeInEaseOut)
+
+        for part in BodyPart.allCases {
+            guard let index = indices[part],
+                  index < morpher.targets.count else {
+                continue
+            }
+
+            morpher.setWeight(
+                weights[part, default: 0],
+                forTargetAt: index
+            )
+        }
+
+        SCNTransaction.commit()
+    }
+
+    // MARK: - ヘルパーメソッド
+
+    private func loadImageFromBundle(name: String, ext: String) -> UIImage? {
+        guard let url = Bundle.main.url(forResource: name, withExtension: ext),
+              let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        return UIImage(data: data)
+    }
+
+    private func findGeometryNode(in node: SCNNode) -> SCNNode? {
+        if node.geometry != nil {
+            return node
+        }
+
+        for child in node.childNodes {
+            if let found = findGeometryNode(in: child) {
+                return found
             }
         }
+
+        return nil
+    }
+
+    private func modelError(_ message: String) -> NSError {
+        NSError(
+            domain: "WorkoutApp.GrowthModel",
+            code: 1,
+            userInfo: [
+                NSLocalizedDescriptionKey: message
+            ]
+        )
     }
 }
